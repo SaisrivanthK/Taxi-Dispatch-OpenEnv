@@ -1,0 +1,143 @@
+env_id: taxi-dispatch-v1
+version: "1.0.0"
+name: Taxi Dispatch & Fleet Optimization
+description: >
+  A real-world mobility simulation where an AI agent dispatches cars to rider
+  requests, handles urgency tiers, vehicle class constraints, traffic delays,
+  pooling, and driver repositioning.
+author: OpenAI
+license: Apache-2.0
+
+observation_space:
+  type: dict
+  fields:
+    current_time:
+      type: float
+      description: Simulated seconds since episode start
+    task_id:
+      type: str
+    traffic_factor:
+      type: float
+    waiting_riders:
+      type: list[dict]
+      description: Pending rider requests with tier, urgency, zones, wait time, and group size
+    available_cars:
+      type: list[dict]
+      description: Current fleet state including car type, capacity, location, and availability
+    driver_status:
+      type: list[dict]
+      description: Driver location, availability, and utilization state
+    metrics:
+      type: dict
+      description: Running episode metrics
+    recent_events:
+      type: list[str]
+
+action_space:
+  type: dict
+  fields:
+    action_type:
+      type: str
+      enum:
+        - assign
+        - pool
+        - reposition
+        - wait
+        - no_op
+    rider_id:
+      type: str
+      required_for: [assign]
+    rider_ids:
+      type: list[str]
+      required_for: [pool]
+    car_id:
+      type: str
+      required_for: [assign, pool]
+    driver_id:
+      type: str
+      required_for: [assign, pool, reposition]
+    target_zone:
+      type: int
+      required_for: [reposition]
+
+reward:
+  range: [-inf, +inf]
+  typical_range: [-0.10, +0.20]
+  description: >
+    Dense per-step reward based on correct vehicle matching, wait-time reduction,
+    safe trip completion, pooling efficiency, repositioning effectiveness, and
+    cancellation avoidance. Score is normalized to [0, 1] by task-specific graders.
+
+tasks:
+  - id: ride_matching
+    difficulty: easy
+    max_steps: 50
+    sim_duration_seconds: 3000
+    description: Low-pressure dispatch with minimal cancellations and no traffic spikes.
+    reward_weights:
+      match_rate: 0.50
+      completion_rate: 0.30
+      wait_efficiency: 0.20
+
+  - id: dispatch_allocation
+    difficulty: medium
+    max_steps: 150
+    sim_duration_seconds: 9000
+    description: Moderate demand with traffic and cancellation pressure.
+    reward_weights:
+      match_rate: 0.25
+      completion_rate: 0.25
+      wait_efficiency: 0.15
+      cancellation_rate: 0.20
+      utilization_rate: 0.15
+
+  - id: surge_mobility
+    difficulty: hard
+    max_steps: 300
+    sim_duration_seconds: 18000
+    description: High-demand city surge with pooling and driver repositioning required.
+    reward_weights:
+      match_rate: 0.20
+      completion_rate: 0.20
+      wait_efficiency: 0.15
+      cancellation_rate: 0.15
+      utilization_rate: 0.10
+      pooling_rate: 0.10
+      reposition_rate: 0.10
+
+api:
+  endpoints:
+    reset:
+      method: POST
+      path: /reset
+    step:
+      method: POST
+      path: /step
+    state:
+      method: GET
+      path: /state
+    score:
+      method: GET
+      path: /score
+    tasks:
+      method: GET
+      path: /tasks
+
+python_api:
+  example: |
+    from env import TaxiEnv, Action, ActionType
+
+    env = TaxiEnv()
+    obs = env.reset(task_id="ride_matching", seed=42)
+
+    action = Action(action_type=ActionType.NO_OP)
+    result = env.step(action)
+
+    print(result.reward, result.done)
+    print(env.score())
+
+baseline_scores:
+  seed: 42
+  agent: heuristic_rule_based
+  note: >
+    Run python baseline/run_baseline.py --seed 42 to reproduce.
