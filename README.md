@@ -7,198 +7,237 @@ sdk: docker
 app_file: app.py
 pinned: false
 ---
+# Taxi Dispatch OpenEnv — Real-World Fleet Optimization Environment
 
-# Taxi Dispatch OpenEnv
+## 1. Overview
 
-A dynamic reinforcement learning environment for simulating real-world ride dispatch and mobility optimization.
+This project implements a **real-world task simulation** for taxi dispatch and fleet optimization using the OpenEnv specification.
 
-This environment models how cars and drivers are assigned to ride requests under constraints such as urgency, customer tier, traffic, and system load.
+The environment models how a ride-hailing platform dynamically assigns drivers and vehicles to rider requests under realistic constraints such as:
 
----
+- Rider priority (normal, premium, VIP)
+- Vehicle compatibility (capacity, type)
+- Traffic conditions
+- Dynamic demand (including surge scenarios)
+- Driver availability and utilization
 
-## Problem Overview
-
-Ride-hailing systems must:
-
-- Match riders to appropriate vehicles
-- Handle dynamic demand and supply
-- Minimize wait time and cancellations
-- Respect customer tiers (normal, premium, VIP)
-- Optimize driver utilization
-- Maintain system efficiency
-
-This environment simulates these challenges in a controlled RL setting.
+The goal is to evaluate and improve decision-making agents that operate in complex, real-time logistics systems.
 
 ---
 
-## Environment Design
+## 2. Real-World Relevance
 
-### Entities
+This environment simulates a real operational problem faced by companies such as Uber, Ola, and Lyft:
 
-Riders:
-- tier: normal / premium / vip
-- group size
-- urgency
-- wait time
+- Matching supply (drivers) with demand (riders)
+- Minimizing wait times and cancellations
+- Maximizing fleet utilization
+- Handling demand spikes and geographic imbalance
 
-Cars:
-- types: basic, sedan, xuv, armored
-- capacity
-- zone location
-
-Drivers:
-- availability
-- location
-- utilization metrics
+This is not a toy problem — it is a simplified abstraction of **urban mobility optimization systems**.
 
 ---
 
-### Actions
+## 3. OpenEnv Specification Compliance
 
-- assign: assign a car to a rider
-- pool: combine compatible riders
-- reposition: move driver across zones
-- wait: take no action
-- no_op: no operation
+The environment fully implements the OpenEnv interface:
+
+### Core API
+
+- `reset(task_id, seed)` → returns initial observation  
+- `step(action)` → returns `(observation, reward, done, info)`  
+- `state()` → returns full internal state  
+- `score()` → returns normalized score (0.0–1.0)
+
+### Typed Models
+
+All inputs and outputs are defined using Pydantic models:
+
+- `Observation`
+- `Action`
+- `StepResult`
+
+### Environment Spec
+
+The environment is described in `openenv.yaml`, including:
+
+- observation space
+- action space
+- reward structure
+- task definitions
 
 ---
 
-### Observations
+## 4. Environment Design
+
+### 4.1 Entities
+
+#### Riders
+- Tier: normal / premium / VIP
+- Group size
+- Pickup and drop zones
+- Wait time
+- Sharing preference
+
+#### Vehicles
+- Types: basic, sedan, XUV, armored
+- Capacity constraints
+- Zone location
+
+#### Drivers
+- Availability
+- Zone location
+- Utilization tracking
+
+---
+
+### 4.2 Action Space
+
+Agents can take one of the following actions:
+
+- `assign` — assign a driver and vehicle to a rider
+- `pool` — combine two compatible riders into one trip
+- `reposition` — move a driver to a different zone
+- `wait` — delay action
+- `no_op` — do nothing
+
+---
+
+### 4.3 Observation Space
 
 Each step returns:
 
-- current time
-- waiting riders
-- available cars
-- driver status
-- system metrics
-- recent events
+- Current simulation time
+- Waiting riders
+- Available vehicles
+- Driver states
+- Traffic factor
+- System metrics (match rate, wait time, etc.)
+- Recent events
 
 ---
 
-### Reward Function
+## 5. Tasks and Objectives
 
-Multi-objective reward:
+The environment defines three tasks with increasing difficulty.
 
-- positive reward for successful ride completion
-- positive reward for fast pickup
-- positive reward for correct car matching
-- penalty for cancellations
-- penalty for long wait times
-- penalty for unsafe matches
+### Task 1: Ride Matching (Easy)
 
----
+Objective:
+- Maximize match rate
+- Ensure correct vehicle assignment
+- Minimize unsafe matches
 
-## Tasks
-
-### Easy — ride_matching
-- low demand
-- no cancellations
-- focus on correct assignment
-
-### Medium — dispatch_allocation
-- moderate demand
-- traffic and cancellations
-- balance efficiency
-
-### Hard — surge_mobility
-- high demand
-- dynamic arrivals
-- driver repositioning and pooling
-- system-level optimization
+Characteristics:
+- Low demand
+- No traffic
+- No pooling or repositioning
 
 ---
 
-## Metrics
+### Task 2: Dispatch Allocation (Medium)
 
-- completion rate
-- cancellation rate
-- wait efficiency
-- utilization rate
-- pooling rate
-- safe drop rate
+Objective:
+- Maximize completion rate
+- Reduce cancellations
+- Balance efficiency and utilization
 
-Final score is normalized between 0.0 and 1.0.
-
----
-
-## Baseline
-
-Run the baseline agent:
-
-python baseline/run_baseline.py
-
-This produces reproducible scores across all tasks.
+Characteristics:
+- Moderate demand
+- Traffic enabled
+- Repositioning allowed
 
 ---
 
-## Inference
+### Task 3: Surge Mobility (Hard)
 
-Run:
+Objective:
+- Maintain system stability under high demand
+- Use pooling effectively
+- Optimize driver distribution
 
-python inference.py
-
-The script outputs structured logs in the format:
-
-[START]
-[STEP]
-...
-[END]
-
----
-
-## API Endpoints
-
-- /reset : reset environment
-- /step : apply action
-- /state : get current state
-- /score : get score
-- /tasks : list tasks
-- /openenv.yaml : environment specification
+Characteristics:
+- High demand
+- Dynamic arrivals
+- Pooling + repositioning required
 
 ---
 
-## Docker
+## 6. Reward Function
 
-Build and run:
+The reward function provides **dense feedback throughout the episode**, not just terminal rewards.
 
-docker build -t taxi-env .
-docker run -p 7860:7860 taxi-env
+### Positive Signals
+- Successful ride completion
+- Correct vehicle–rider matching
+- Reduced wait time
+- Effective pooling
+- Successful driver repositioning
 
----
+### Negative Signals
+- Long wait times
+- Rider cancellations
+- Unsafe or incorrect matches
+- Inefficient assignments
+- Idle system behavior
 
-## Setup
-
-pip install -r requirements.txt  
-python app.py  
-
-Open in browser:
-
-http://127.0.0.1:7860/docs
-
----
-
-## Project Structure
-
-env/  
-baseline/  
-tests/  
-inference.py  
-app.py  
-openenv.yaml  
-Dockerfile  
-README.md  
+The final score is normalized between **0.0 and 1.0** using task-specific graders.
 
 ---
 
-## Notes
+## 7. Agent Design
 
-- Designed to run on 2 vCPU, 8GB RAM
-- Inference completes within 20 minutes
-- Deterministic baseline for reproducibility
+### Baseline Agent
+
+A deterministic rule-based agent is provided:
+
+- Assigns nearest feasible vehicle
+- Uses simple heuristics for matching
+- Limited global optimization
 
 ---
 
-## License
+### Smart Agent (Improved)
 
-MIT
+The improved agent uses a **multi-objective scoring function**:
+
+Factors considered:
+- Rider priority (VIP > premium > normal)
+- Distance between driver and pickup
+- Wait time penalty
+- Vehicle suitability (capacity and type)
+
+The agent evaluates multiple candidate assignments and selects the highest-scoring action.
+
+---
+
+## 8. Evaluation
+
+### Baseline Performance
+
+| Task | Score |
+|------|------|
+| Ride Matching | 0.58 |
+| Dispatch Allocation | 0.78 |
+| Surge Mobility | 0.78 |
+
+---
+
+### Improved Agent Performance
+
+| Task | Score |
+|------|------|
+| Ride Matching | 0.68 – 0.72 |
+| Dispatch Allocation | 0.80+ |
+| Surge Mobility | 0.80+ |
+
+The improved agent demonstrates better prioritization, reduced wait times, and more efficient dispatching.
+
+---
+
+## 9. Running the Project
+
+### 9.1 Install Dependencies
+
+```bash
+pip install -r requirements.txt
