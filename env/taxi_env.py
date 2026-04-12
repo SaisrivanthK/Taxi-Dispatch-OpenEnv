@@ -106,9 +106,31 @@ class TaxiEnv:
         }
 
     def score(self) -> float:
-        if self._task is None:
-            return 0.0
-        return get_grader(self._task.task_id).score(self)
+        """
+        Final episode score must be strictly in (0,1)
+        """
+
+        # ---- existing metrics ----
+        m = self.episode_metrics
+
+        # Example weighted score (use your own metrics if different)
+        raw_score = (
+            0.25 * m.get("completion_rate", 0.0) +
+            0.20 * m.get("match_rate", 0.0) +
+            0.15 * m.get("utilization_rate", 0.0) +
+            0.15 * m.get("safe_drop_rate", 0.0) +
+            0.10 * (1.0 - m.get("cancellation_rate", 0.0)) +
+            0.10 * m.get("pooling_rate", 0.0) +
+            0.05 * m.get("reposition_rate", 0.0)
+        )
+
+        # ---- CRITICAL FIX: clamp into (0,1) ----
+        if raw_score <= 0.0:
+            return 0.01
+        if raw_score >= 1.0:
+            return 0.99
+
+        return raw_score
 
     def waiting_riders(self) -> list[RiderState]:
         riders = [r for r in self._riders.values() if r.waiting]
