@@ -9,11 +9,11 @@ from env import Action, ActionType, TaxiEnv
 MAX_STEPS = 60
 
 # =========================
-# LLM CLIENT (MANDATORY)
+# REQUIRED LLM CLIENT
 # =========================
 client = OpenAI(
-    base_url=os.environ.get("API_BASE_URL"),
-    api_key=os.environ.get("API_KEY"),
+    base_url=os.environ["API_BASE_URL"],
+    api_key=os.environ["API_KEY"],
 )
 
 MODEL = "gpt-4o-mini"
@@ -92,7 +92,7 @@ def run_task(task_id: str, seed: int):
     score = env.score()
 
     print(
-        f"[END] task={task_id} score={score:.4f} steps={steps}",
+        f"[END] task={task_id} score={score:.6f} steps={steps}",
         flush=True,
     )
 
@@ -103,8 +103,8 @@ def run_task(task_id: str, seed: int):
 def main():
     tasks = ["ride_matching", "dispatch_allocation", "surge_mobility"]
 
-    for t in tasks:
-        run_task(t, seed=42)
+    for task in tasks:
+        run_task(task, seed=42)
 
 
 if __name__ == "__main__":

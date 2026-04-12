@@ -100,25 +100,30 @@ class BaseGrader:
 
     @staticmethod
     def clamp(x: float) -> float:
-        return max(0.0, min(1.0, x))
+        # Ensure STRICT (0,1) range
+        eps = 1e-6
+        return max(eps, min(1.0 - eps, x))
 
 
 class RideMatchingGrader(BaseGrader):
     def score(self, env: "TaxiEnv") -> float:
         m = env.episode_metrics
         w = self.task.reward_weights
+
         score = (
             w["match_rate"] * m.get("match_rate", 0.0)
             + w["completion_rate"] * m.get("completion_rate", 0.0)
             + w["wait_efficiency"] * m.get("wait_efficiency", 0.0)
         )
-        return round(self.clamp(score), 4)
+
+        return self.clamp(round(score, 4))
 
 
 class DispatchAllocationGrader(BaseGrader):
     def score(self, env: "TaxiEnv") -> float:
         m = env.episode_metrics
         w = self.task.reward_weights
+
         score = (
             w["match_rate"] * m.get("match_rate", 0.0)
             + w["completion_rate"] * m.get("completion_rate", 0.0)
@@ -126,13 +131,15 @@ class DispatchAllocationGrader(BaseGrader):
             + w["cancellation_rate"] * m.get("cancellation_rate", 0.0)
             + w["utilization_rate"] * m.get("utilization_rate", 0.0)
         )
-        return round(self.clamp(score), 4)
+
+        return self.clamp(round(score, 4))
 
 
 class SurgeMobilityGrader(BaseGrader):
     def score(self, env: "TaxiEnv") -> float:
         m = env.episode_metrics
         w = self.task.reward_weights
+
         score = (
             w["match_rate"] * m.get("match_rate", 0.0)
             + w["completion_rate"] * m.get("completion_rate", 0.0)
@@ -142,7 +149,8 @@ class SurgeMobilityGrader(BaseGrader):
             + w["pooling_rate"] * m.get("pooling_rate", 0.0)
             + w["reposition_rate"] * m.get("reposition_rate", 0.0)
         )
-        return round(self.clamp(score), 4)
+
+        return self.clamp(round(score, 4))
 
 
 GRADERS = {
