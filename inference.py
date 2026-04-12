@@ -2,23 +2,16 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Optional
-
-from openai import OpenAI
+from typing import Any
 
 from env import Action, ActionType, TaxiEnv
 
-# =========================
-# CONFIG
-# =========================
-API_KEY = os.getenv("OPENAI_API_KEY")
-MODEL_NAME = "gpt-4o-mini"
 MAX_STEPS = 60
+
 
 # =========================
 # SMART AGENT
 # =========================
-
 def score_assignment(env, rider, car, driver):
     distance = abs(driver.zone - rider.pickup_zone)
 
@@ -95,53 +88,37 @@ def smart_action(env: TaxiEnv) -> Action:
 
 
 # =========================
-# OPTIONAL LLM AGENT
-# =========================
-def model_action(client: OpenAI, obs: Any) -> dict:
-    prompt = f"Observation: {json.dumps(obs.model_dump())}\nReturn best action JSON."
-
-    completion = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2,
-    )
-
-    return json.loads(completion.choices[0].message.content)
-
-
-# =========================
-# RUN TASK
+# RUN TASK WITH LOGGING
 # =========================
 def run_task(task_id: str, seed: int):
     env = TaxiEnv()
     obs = env.reset(task_id=task_id, seed=seed)
 
-    client = OpenAI(api_key=API_KEY) if API_KEY else None
+    print(f"[START] task={task_id}", flush=True)
 
-    rewards = []
+    steps = 0
 
-    for step in range(MAX_STEPS):
-        try:
-            if client:
-                action_dict = model_action(client, obs)
-                action = Action(**action_dict)
-            else:
-                action = smart_action(env)
-        except Exception:
-            action = smart_action(env)
+    for step in range(1, MAX_STEPS + 1):
+        action = smart_action(env)
 
         result = env.step(action)
         obs = result.observation
-        rewards.append(result.reward)
+        steps = step
+
+        print(
+            f"[STEP] step={step} reward={result.reward:.4f} done={str(result.done).lower()}",
+            flush=True,
+        )
 
         if result.done or result.truncated:
             break
 
     score = env.score()
 
-    print(f"\nTask: {task_id}")
-    print(f"Score: {score:.4f}")
-    return score
+    print(
+        f"[END] task={task_id} score={score:.4f} steps={steps}",
+        flush=True,
+    )
 
 
 # =========================
@@ -150,16 +127,8 @@ def run_task(task_id: str, seed: int):
 def main():
     tasks = ["ride_matching", "dispatch_allocation", "surge_mobility"]
 
-    scores = []
-    for t in tasks:
-        s = run_task(t, seed=42)
-        scores.append(s)
-
-    avg = sum(scores) / len(scores)
-
-    print("\n==========================")
-    print(f"Average Score: {avg:.4f}")
-    print("==========================")
+    for task in tasks:
+        run_task(task, seed=42)
 
 
 if __name__ == "__main__":
